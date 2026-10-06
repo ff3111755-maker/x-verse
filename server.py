@@ -7,7 +7,7 @@ import time
 import threading
 from collections import defaultdict, deque
 from runner_gateway import run_code
-from hosting import AUTH_MODE,ORIGINS,visitor,require_user,public_config
+from hosting import STORAGE_MODE,AUTH_MODE,ORIGINS,visitor,require_user,public_config
 from pathlib import Path
 from datetime import datetime, timezone
 from contextlib import asynccontextmanager
@@ -23,7 +23,7 @@ DATA=json.loads((ROOT/'data/curriculum.json').read_text())
 LESSONS={x['id']:x for x in DATA['lessons']}
 PROJECTS={x['id'] for x in DATA['projects']}
 DB=Path(os.getenv('SQLITE_PATH',str(ROOT/'data/academy.sqlite')))
-DB.parent.mkdir(parents=True,exist_ok=True)
+if STORAGE_MODE=='server':DB.parent.mkdir(parents=True,exist_ok=True)
 def connect():
     db=sqlite3.connect(DB,timeout=15)
     db.row_factory=sqlite3.Row
@@ -31,7 +31,8 @@ def connect():
 
 @asynccontextmanager
 async def lifespan(app):
-    with connect() as db:
+    if STORAGE_MODE=='server':
+      with connect() as db:
         db.execute("PRAGMA journal_mode=WAL")
         db.executescript("""
         CREATE TABLE IF NOT EXISTS progress(user_id TEXT,lesson_id TEXT,completed_at TEXT,PRIMARY KEY(user_id,lesson_id));
@@ -88,6 +89,7 @@ def curriculum():
 def state(req:Request):
     v=visitor(req)
     if not v:return dict(user=None,completed=[],drafts={})
+    if not DB.exists():return dict(user=v,completed=[],drafts={})
     with connect() as db:
         completed=[dict(r) for r in db.execute("SELECT lesson_id,completed_at FROM progress WHERE user_id=?",(v['id'],))]
         drafts={r['document_id']:dict(html=r['html'],css=r['css'],updated_at=r['updated_at']) for r in db.execute("SELECT document_id,html,css,updated_at FROM drafts WHERE user_id=?",(v['id'],))}
@@ -105,6 +107,7 @@ def valid_doc(doc):
 
 @app.put('/api/drafts/{doc}')
 def save_draft(doc:str,data:Code,req:Request):
+    if STORAGE_MODE=='browser':raise HTTPException(409,'This deployment saves drafts in your browser, not on the server.')
     uid=require_user(req)
     valid_doc(doc)
     stamp=datetime.now(timezone.utc).isoformat()
@@ -181,6 +184,7 @@ def check(doc:str,data:Code,req:Request):
 
 @app.post('/api/complete/{doc}')
 def complete(doc:str,data:Attempt,req:Request):
+    if STORAGE_MODE=='browser':raise HTTPException(409,'This deployment saves progress in your browser.')
     uid=require_user(req)
     if doc not in LESSONS:raise HTTPException(404,"Unknown lesson")
     l=LESSONS[doc]
@@ -193,6 +197,17 @@ def complete(doc:str,data:Attempt,req:Request):
         db.execute("INSERT OR IGNORE INTO progress VALUES (?,?,?)",(uid,doc,stamp))
         db.execute("INSERT INTO drafts VALUES (?,?,?,?,?) ON CONFLICT(user_id,document_id) DO UPDATE SET html=excluded.html,css=excluded.css,updated_at=excluded.updated_at",(uid,doc,data.html,data.css,stamp))
     return dict(completed=True,lesson_id=doc,completed_at=stamp)
+
+@app.post('/api/validate-completion/{doc}')
+def validate_completion(doc:str,data:Attempt,req:Request):
+    # Stateless validation: no login or server record needed for HTML/CSS.
+    if doc not in LESSONS:raise HTTPException(404,'Unknown lesson')
+    lesson=LESSONS[doc]
+    if data.answer!=lesson['quiz']['answer']:raise HTTPException(400,'Pass the knowledge check before completing this lesson.')
+    if lesson['track'] in ('javascript','java'):limit_runs(req)
+    checks=check_code(lesson,data.html,data.css)
+    if not all(c['passed'] for c in checks):raise HTTPException(400,'Pass the code checks before completing this lesson.')
+    return dict(valid=True,lesson_id=doc)
 
 @app.get('/api/export')
 def export(req:Request):

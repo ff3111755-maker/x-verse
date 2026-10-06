@@ -1,27 +1,17 @@
-# Import this repository as a Render Blueprint.
-# A paid persistent disk is required for SQLite; this is NOT a free-tier recipe.
+# Optional Blueprint. Manual New > Web Service > Docker > Free works too.
+# No persistent disk, database credentials, or paid instance is configured.
 services:
   - type: web
     name: x-verse
     runtime: docker
-    plan: starter
+    plan: free
     dockerfilePath: ./Dockerfile
     dockerContext: .
     healthCheckPath: /readyz
-    disk:
-      name: xverse-data
-      mountPath: /var/data
-      sizeGB: 1
     envVars:
-      - key: AUTH_MODE
-        value: supabase
+      - key: STORAGE_MODE
+        value: browser
       - key: RUNNER_MODE
         value: disabled
-      - key: SQLITE_PATH
-        value: /var/data/academy.sqlite
-      - key: SUPABASE_URL
-        sync: false
-      - key: SUPABASE_PUBLISHABLE_KEY
-        sync: false
       - key: ALLOWED_ORIGINS
         value: ""

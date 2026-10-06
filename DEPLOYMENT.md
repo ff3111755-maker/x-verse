@@ -1,192 +1,155 @@
-# Deploy X Verse
+# Deploy X Verse — browser-saving edition
 
-## Choose a setup
+**Simplest setup: Render → New → Web Service → Docker → Free.** No Blueprint, persistent disk, Supabase project, Redis, Postgres, or login is required for progress and draft saving.
 
-| Setup | Frontend | API + saved data | Java/JavaScript execution |
-|---|---|---|---|
-| **Render — simplest** | Render web service | Same service + persistent disk | Optional separate runner |
-| **Vercel + Render** | Vercel | Render web service + persistent disk | Optional separate runner |
+This package defaults to `STORAGE_MODE=browser`: each learner's progress and code live in **IndexedDB in their browser**, not Render's filesystem. Render can restart without deleting those browser records.
 
-**Vercel alone does not host this version's persistent SQLite database or isolated Docker runner.** Ordinary Render web services also do not provide the Docker daemon needed to launch per-user execution containers. The included web image deliberately does not execute learner code directly.
+Hosting providers may still require account verification or change their free-tier conditions. This configuration does not select a paid instance or disk; it cannot bypass a provider's payment-verification policy.
 
-Without a runner, the website, all 106 lessons, 7 project briefs, sign-in, saved drafts, HTML/CSS preview/checks, quizzes, and HTML/CSS completion work. Java/JavaScript Run, executable checks, and lesson completion require the separate runner. The UI explains this rather than showing fake output.
+## 1. Put the updated source on GitHub
 
-Render's persistent disk requires a paid disk-compatible service. Hosting, authentication email, and the optional runner may incur costs. Check current provider pricing before creating services.
+Extract `x-verse-browser-storage.zip`. Put the **contents of its `x-verse` folder** at your repository root:
 
-## 1. Put the code on GitHub
+```text
+Dockerfile
+render.yaml
+vercel.json
+server.py
+hosting.py
+frontend/
+data/
+deploy/
+...
+```
 
-Unzip the source archive. Open the inner `x-verse` folder: `render.yaml`, `vercel.json`, `Dockerfile`, and `frontend/` must be at the repository root, not inside an extra nested folder.
+Replace the old deployment files as well as the frontend code. Never commit real `.env` files, tokens, or learner databases.
 
-Create a repository and upload the source. The included `.gitignore` excludes databases, credentials, dependencies, and local builds. Never commit real `.env` files.
+## 2. Render Free, manually — no Blueprint
 
-## 2. Create Supabase authentication
+1. Choose **New → Web Service** and connect the repository.
+2. Select **Docker** as the runtime.
+3. Set Dockerfile path to `./Dockerfile`, with the repository root as the build context. If your files are nested, use that folder as the Root Directory.
+4. Choose the **Free** instance type.
+5. **Do not add a persistent disk.**
+6. Set these environment variables:
+   ```text
+   STORAGE_MODE=browser
+   RUNNER_MODE=disabled
+   ```
+   Both are defaults in the new package; setting them explicitly makes the intended setup clear.
+7. Leave `ALLOWED_ORIGINS` empty when the frontend and API are on the same Render origin.
+8. Do not override the Docker start command. Set health check path to `/readyz`.
+9. Deploy and open the Render URL.
 
-1. Create your own project at https://supabase.com/dashboard.
-2. In Authentication, enable **Email** sign-in and keep email confirmation enabled.
-3. Copy the **Project URL** and **publishable key** from the project's API settings. A legacy `anon` key also works.
-4. Do **not** use a secret key or `service_role` key. The public publishable key is intentionally served to the frontend; privileged keys are rejected.
-5. Configure production SMTP for reliable confirmation and sign-in emails. Supabase's default email service has restrictions and is not a production mail setup.
-6. Once you know your deployment address, set:
-   - **Site URL** to the public frontend's HTTPS origin.
-   - **Redirect URLs** to the same exact origin, for example `https://your-app.vercel.app` or `https://your-app.onrender.com`.
-   - Add custom domains explicitly when you switch domains.
+If moving an existing service from the old package, remove obsolete `SUPABASE_URL`/`SUPABASE_PUBLISHABLE_KEY` variables if you no longer use account mode. Incomplete/invalid leftover credentials can still cause startup configuration errors. Do not set `AUTH_MODE=promptql` on public hosting.
 
-X Verse uses email/password sign-up and sign-in, with an email-link option for existing accounts. Sign-up passwords must have at least 12 characters. The backend verifies access tokens with Supabase Auth on each protected request.
+**Already created a paid service/disk?** Updating code does not cancel or downgrade it. Review those resources in Render. Export learner records before removing an old disk. Starting a separate Free Web Service is the clearest way to avoid inheriting a paid setup; do not delete the old data until any migration has been verified.
 
-No Supabase database tables or RLS migrations are needed: only **Auth** is used. Progress and drafts live in SQLite on Render's disk.
+### Optional Blueprint
 
-## 3A. Deploy everything except the runner on Render
+The updated `render.yaml` also selects **Free**, browser storage, no disk, and no required Supabase keys. You may use it instead, but manual deployment is supported and easier to review.
 
-1. In Render, choose **New → Blueprint** and connect the repository.
-2. Render reads `render.yaml`. Review the paid `starter` service and 1 GB disk before approving.
-3. Supply:
-   - `SUPABASE_URL` — your Supabase project URL.
-   - `SUPABASE_PUBLISHABLE_KEY` — its publishable or legacy anon key.
-4. Leave these provided values:
-   - `AUTH_MODE=supabase`
-   - `RUNNER_MODE=disabled` until a separate runner is ready.
-   - `SQLITE_PATH=/var/data/academy.sqlite`
-   - `ALLOWED_ORIGINS` empty when Render serves the frontend and API at the same origin.
-5. Deploy. Render builds the Dockerfile; the server listens on Render's `PORT`.
-6. Set the Render URL in Supabase's Site URL/Redirect URLs, then open the app.
-7. Select **Sign in** or the appearance/settings button to create an account.
+### What works without a paid runner
 
-Manual alternative: create a Docker Web Service, use repository root as build context and `./Dockerfile`, add a persistent disk mounted at `/var/data`, enter the same environment variables, and set health check `/readyz`. Do not override the image's start command.
+- All 106 lesson pages and seven project briefs.
+- HTML/CSS editor, live preview, exercise checks, quizzes, and completion.
+- Java/JavaScript source editing, automatic draft saving, and source download.
+- Local progress, XP, milestones, JSON export/import.
+- Color presets, hologram, and smart HTML tag pairs.
 
-The container fixes the disk directory ownership on startup and drops to an unprivileged application user. It runs one API worker. Keep one instance with this SQLite architecture; horizontal scaling needs a shared database redesign.
+**Java/JavaScript execution, executable checks, and their completion still require a protected code runner.** Browser storage does not provide a Java runtime. The free deployment tells learners that execution is unavailable instead of showing fabricated output or opening an unrestricted public runner.
 
-## 3B. Use Vercel for the frontend
+Render Free may sleep when idle and take time to wake. X Verse is **not a fully offline app**: loading the curriculum and checking/completing exercises still use the API. Already-loaded HTML/CSS preview and local saving are browser-side.
 
-First deploy the Render backend using section 3A; its bundled frontend can remain available.
+## 3. Vercel frontend + Render Free API
 
-1. Import the same GitHub repository into Vercel.
-2. Set **Root Directory** to the repository root. `vercel.json` supplies:
+1. Deploy the Render service above.
+2. Import the same repository into Vercel. Keep Root Directory at the repository root.
+3. The included `vercel.json` configures:
    - Install: `npm --prefix frontend ci`
    - Build: `npm --prefix frontend run build`
    - Output: `frontend/dist`
-   - Node.js: 22.x (root `package.json`).
-3. Add a **Vercel environment variable**:
+   - Node: 22.x via root `package.json`.
+4. Set this **Vercel build environment variable**:
    ```text
-   VITE_API_BASE_URL=https://YOUR_RENDER_SERVICE.onrender.com
+   VITE_API_BASE_URL=https://YOUR_SERVICE.onrender.com
    ```
-   Use the HTTPS backend origin only, with no `/api` suffix or trailing slash.
-4. Deploy. Copy the resulting Vercel frontend origin.
-5. On the **Render backend**, set:
+   Use the API origin only, without `/api`.
+5. Deploy. On **Render**, set:
    ```text
    ALLOWED_ORIGINS=https://YOUR_APP.vercel.app
    ```
-   Redeploy/restart the Render service after changing its environment.
-6. Set Supabase's Site URL and Redirect URLs to the Vercel frontend origin.
-7. Open Vercel, sign in, and test a saved draft.
+   Restart/redeploy Render after changing it.
+6. Add your exact custom-domain origin if needed. Multiple allowed origins are comma-separated; do not use `*`.
 
-Environment values beginning with `VITE_` are baked into the frontend and are public. **Never put runner credentials or Supabase secret/service-role keys in Vercel's frontend variables.** Supabase's public URL/key are read from the backend config.
+No Supabase redirects or keys are needed in browser mode. Changing `VITE_API_BASE_URL` requires rebuilding Vercel.
 
-Changing `VITE_API_BASE_URL` requires a Vercel rebuild. CORS allows exact origins only: for a custom domain, add that origin to `ALLOWED_ORIGINS` and Supabase redirects. Multiple allowed origins are comma-separated. Vercel preview domains do not inherit production access automatically; add only previews you trust, and preferably use separate preview authentication/data.
+**Vercel alone is not supported by this package:** its curriculum and exercise-check API still runs on Render or another Python host.
 
-## 4. Optional: enable Java and JavaScript execution
+## 4. Browser storage and backups
 
-This needs a **separate Linux host with Docker Engine**, such as a dedicated VPS. Neither the Render web image nor Vercel is the runner. The current PromptQL VM is not used as an external deployment dependency.
+Open **Preferences & backups** using the palette icon, or **Backups & storage** in the banner.
 
-### Prepare the host
+- Drafts save automatically as you edit. Wait for **Saved in this browser** before closing the page.
+- **Export backup** downloads a versioned JSON file containing completed lessons and all saved lesson, project, and playground drafts. It flushes active editors first.
+- **Import backup** reads a JSON file, validates its structure, and shows the number of lessons/drafts before any data is changed.
+- **Merge backup** keeps existing completions. For matching drafts, the newer timestamp wins. Import is transactional: invalid input is rejected, not partially applied.
+- Export before importing if you want a recovery copy of both versions.
+- **Ask browser to protect saved data** requests persistent browser storage when supported. The browser can decline; it does not stop a person clearing site data.
+- Backups contain source code. Store them privately if your drafts contain anything sensitive. They do not contain account tokens.
 
-Install a supported Docker Engine, Python 3.12+, uv, and Caddy. Configure Docker to start on boot. On the dedicated host, copy these files into `/opt/xverse`:
+### Limits to understand
 
-- `runner_server.py`
-- `code_runner.py`
-- `requirements.txt`
-- `Dockerfile.javascript`
-- `javascript-runner.mjs`
-- `deploy/runner.service`
-- `deploy/Caddyfile.example`
+- One learning profile per browser profile and website origin. People sharing that browser profile share these records; there is no account isolation in browser mode.
+- No automatic cross-device or cross-browser sync.
+- A Render domain, a Vercel domain, and a custom domain each have separate storage. **Export on the old URL and import on the new URL.**
+- Clearing site data, private/incognito sessions, storage eviction, browser/profile removal, or device loss can erase records.
+- Appearance preferences and temporary project-review checkboxes are not in the learning backup.
+- Import supports version 1 backups and the previous X Verse account-export JSON format. Imported progress is a personal learning record, not a tamper-proof certificate.
+- If storage is blocked/full, the UI reports a failure rather than claiming a successful save. Export/download what you can and fix the storage setting before continuing.
+- Multiple tabs share storage; refresh an inactive tab to see progress changed elsewhere. Avoid editing the same document in two tabs simultaneously.
 
-Then, as a host administrator:
+## 5. Existing data
 
-```sh
-sudo useradd --system --create-home --user-group xverse-runner
-sudo usermod -aG docker xverse-runner
-cd /opt/xverse
+This source archive contains **no learner data**.
 
-uv venv .venv
-uv pip install --python .venv/bin/python -r requirements.txt
-mkdir -p runner-build
-cp Dockerfile.javascript javascript-runner.mjs runner-build/
-sudo docker build -f runner-build/Dockerfile.javascript -t xverse-javascript:1 runner-build
-sudo docker pull eclipse-temurin:21-jdk
+The PromptQL-hosted app keeps its previous server database intact. In its backup panel, **Import my previously saved account data** loads only the currently authorized visitor's account export, shows a preview, and asks for merge confirmation. It does not delete the original records.
 
-# Generates a new secret on YOUR machine; keep it private.
-sudo python3 - <<'PY'
-import secrets, os
-path = "/etc/xverse-runner.env"
-fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-with os.fdopen(fd, "w") as f:
-    f.write("RUNNER_API_KEY=" + secrets.token_urlsafe(48) + "\n")
-PY
+For an older standalone account-mode deployment, export while that version is still available, then import the downloaded JSON on the new browser-saving version. If old ephemeral SQLite data has already disappeared, browser storage cannot recover it.
 
-sudo install -m 644 deploy/runner.service /etc/systemd/system/xverse-runner.service
-sudo systemctl daemon-reload
-sudo systemctl enable --now xverse-runner.service
-```
+Browser saving does not copy the whole project's records to a device or link unrelated identities.
 
-Ensure the `xverse-runner` user can read and execute `/opt/xverse/.venv` and the runner source, and that the source directory is not writable by untrusted users. The virtualenv must be installed at its final path.
+## 6. Optional account mode and protected execution
 
-### Put TLS in front
-
-1. Point a domain such as `runner.yourdomain.com` at the dedicated host.
-2. Adapt `deploy/Caddyfile.example` with your real domain and install it as the host's Caddy config.
-3. Open only the required HTTPS/ACME ports (443/80) and restricted SSH.
-4. Keep port 9000 bound to loopback. Do not expose the Docker socket.
-5. The runner's `/readyz` and `/v1/run` both require the Bearer key.
-
-On the **Render backend**, configure:
-
+The previous server mode remains available for an operator who deliberately wants account-based saving:
 ```text
-RUNNER_MODE=remote
-RUNNER_URL=https://runner.yourdomain.com
-RUNNER_API_KEY=<same secret from /etc/xverse-runner.env>
+STORAGE_MODE=server
+AUTH_MODE=supabase
+SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+SUPABASE_PUBLISHABLE_KEY=sb_publishable_YOUR_PUBLIC_KEY
+SQLITE_PATH=/var/data/academy.sqlite
 ```
+That mode uses Supabase Auth and SQLite on a **persistent disk**, not Supabase's database. It is not the no-disk free recipe. Supabase email/provider/redirect settings are required; use only a publishable or legacy anon key, never a service-role key.
 
-`RUNNER_URL` has no `/v1/run` suffix. Restart/redeploy Render. These variables belong only on backend/runner services, never in the frontend. Java and JavaScript should now execute.
+A separate runner can be connected in authenticated account mode. See [RUNNER.md](RUNNER.md). Public browser mode deliberately does not remove the runner's authentication requirement; simply setting `RUNNER_MODE=remote` will not turn this into an anonymous public compiler. The PromptQL-hosted version can retain execution through its trusted identity boundary.
 
-### Security and limits
+Do not expose Docker sockets or execute submitted code directly in the API process.
 
-The runner launches fresh non-root, networkless containers with no host mounts, read-only root filesystems, dropped capabilities, two concurrent runs, 384 MB RAM, 0.75 CPU, 64 PIDs, 15 seconds, and 32 KB output per run. The API allows 20 execution requests/minute per signed-in account.
-
-Docker access is effectively host-root privilege. Use a dedicated host with no unrelated credentials or workloads, keep it patched, enforce infrastructure spending/rate limits, and monitor it. These containers share the host kernel and are not a guarantee against all sandbox escapes. An open, high-volume public coding service warrants an independently reviewed execution tier. Keep a single runner/API worker unless you implement shared quotas.
-
-## 5. Verify after deployment
+## Verification
 
 - `/readyz` returns HTTP 204.
-- `/api/config` reports `auth_mode: "supabase"` and never contains runner secrets.
-- Create an account, confirm its email, sign in, edit a draft, then refresh.
-- Sign in using another account: the first account's drafts must not appear.
-- Complete an HTML lesson and check that XP persists.
-- With the optional runner: run `console.log("Hello")` and the first Java example; test a syntax error too.
-- Restart/redeploy the Render service and confirm saved data remains.
-- Check mobile layout and custom-domain redirects.
+- `/api/config` reports `storage_mode: "browser"`.
+- Open a fresh browser with no login, edit a draft, wait for Saved, refresh, and reopen it.
+- Complete an HTML lesson and verify its progress after refresh.
+- Export, import in a different browser profile, confirm the merge, and check progress/drafts.
+- Test on mobile and after a Render restart.
+- A second clean browser should start empty until a backup is imported.
 
-This package was tested locally using its actual Docker image, SQLite restart persistence, verified-auth logic with a mocked Supabase service, frontend sign-in flows with mocks, CORS checks, and a loopback authenticated runner. **It has not been deployed into your Vercel/Render account or tested with your live Supabase project.**
+The package has local browser tests, backend tests, and Docker deployment tests. It has **not been deployed to your hosting account**. Provider-specific verification, billing, and availability remain outside the app.
 
-## Backups and migration
+## References
 
-Use SQLite's backup API or an appropriate Render disk backup process. Do not casually copy a live database without its WAL handling. The source archive contains **no learner database or personal data**.
-
-Your new deployment starts empty. PromptQL user IDs and Supabase user IDs are different, so records do not automatically map across systems. Use the app's export for a personal archive; importing/linking those records requires an explicit migration, not blindly relabeling users.
-
-## Troubleshooting
-
-- **Website opens but lessons fail to load:** check `VITE_API_BASE_URL`, HTTPS, and the Render service's health.
-- **CORS error:** add the exact frontend origin to Render `ALLOWED_ORIGINS`, then restart Render. Do not use `*`.
-- **Account creation email missing:** check Supabase Email provider settings, SMTP, spam, rate limits, and redirect allowlist.
-- **No saved progress after redeploy:** verify disk mount `/var/data` and `SQLITE_PATH`; do not rely on the container's temporary filesystem.
-- **Java/JS unavailable:** `RUNNER_MODE=disabled` is intentional until a runner is configured. Check runner TLS/domain/key/service logs if `remote`.
-- **Container busy:** wait for active runs; do not remove isolation/resource limits to work around load.
-- **Do not set `AUTH_MODE=promptql` on Vercel/Render.** It trusts a platform-injected header and is only safe behind PromptQL's trusted app proxy.
-- **API says configuration invalid:** use a publishable/anon Supabase key, exact HTTPS origins, and a random runner key of at least 32 characters.
-
-## Official references
-
-- Render Blueprint: https://render.com/docs/infrastructure-as-code
-- Render Docker services: https://render.com/docs/docker
-- Render persistent disks: https://render.com/docs/disks
+- Render Free: https://render.com/docs/free
+- Render Docker: https://render.com/docs/docker
 - Vite on Vercel: https://vercel.com/docs/frameworks/frontend/vite
-- Supabase Auth: https://supabase.com/docs/guides/auth
+- IndexedDB: https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API

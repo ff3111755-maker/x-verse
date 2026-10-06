@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 import httpx
 from fastapi import HTTPException
 
+STORAGE_MODE=os.getenv('STORAGE_MODE','browser')
 AUTH_MODE=os.getenv('AUTH_MODE','supabase')
 RUNNER_MODE=os.getenv('RUNNER_MODE','disabled')
 SUPABASE_URL=os.getenv('SUPABASE_URL','').rstrip('/')
@@ -20,6 +21,7 @@ def safe_url(value):
     return parsed.scheme=='https' and bool(parsed.hostname) and not parsed.username and not parsed.password and not parsed.query and not parsed.fragment
 
 def validate_settings():
+    if STORAGE_MODE not in ('browser','server'):raise RuntimeError('STORAGE_MODE must be browser or server')
     if AUTH_MODE not in ('supabase','promptql'):raise RuntimeError('AUTH_MODE must be supabase or promptql')
     if RUNNER_MODE not in ('disabled','remote','docker'):raise RuntimeError('Unknown RUNNER_MODE')
     for origin in ORIGINS:
@@ -46,10 +48,12 @@ def validate_settings():
 validate_settings()
 
 def public_config():
-    return dict(auth_mode=AUTH_MODE,auth_configured=bool(SUPABASE_URL and SUPABASE_KEY) if AUTH_MODE=='supabase' else True,
+    return dict(storage_mode=STORAGE_MODE,auth_mode=AUTH_MODE,auth_configured=bool(SUPABASE_URL and SUPABASE_KEY) if AUTH_MODE=='supabase' else True,
                 supabase_url=SUPABASE_URL if AUTH_MODE=='supabase' else '',
                 supabase_publishable_key=SUPABASE_KEY if AUTH_MODE=='supabase' else '',
                 runner_enabled=RUNNER_MODE!='disabled',
+                browser_runner_available=RUNNER_MODE!='disabled' and AUTH_MODE=='promptql',
+                legacy_import_available=STORAGE_MODE=='browser' and AUTH_MODE=='promptql',
                 runner_message='' if RUNNER_MODE!='disabled' else 'Code execution is not configured on this deployment. You can still read lessons, edit code, download programs, and practice HTML/CSS.')
 
 def visitor(req):

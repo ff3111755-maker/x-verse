@@ -4,7 +4,7 @@ A full-stack learning website for HTML, CSS, JavaScript, and Java.
 
 ## Deployment
 
-**Start with [DEPLOYMENT.md](DEPLOYMENT.md).** Includes Render Blueprint, Docker image, Vercel frontend config, Supabase sign-in, exact-origin CORS, persistent SQLite configuration, and an optional dedicated execution service. Render is the simplest web/API deployment; Vercel hosts the frontend with Render as its backend. The separate code runner requires a Docker-capable host.
+**Start with [DEPLOYMENT.md](DEPLOYMENT.md).** Deploy manually to Render Free using Docker, no Blueprint or database required. Learners save progress/drafts in their browser without signing in, with JSON export/import backups. Vercel can host the frontend with Render as the API. Protected Java/JavaScript execution still needs a separate runner.
 
 ## Courses and features
 
@@ -13,7 +13,7 @@ A full-stack learning website for HTML, CSS, JavaScript, and Java.
 - **Seven projects:** three HTML/CSS projects, two JavaScript projects, and two Java projects.
 - Sandboxed live HTML/CSS preview with smart paired-tag completion.
 - Executable JavaScript (Node.js 22) and Java (JDK 21), with output and compiler/runtime errors.
-- Per-user SQLite progress, drafts, XP, milestones, and export.
+- IndexedDB progress, drafts, XP, milestones, and validated JSON backup export/import—no login required.
 - Five color presets, custom accent, draggable holographic visual, reduced-motion support.
 - Responsive layouts and keyboard-accessible editors.
 - X Verse branding and no companion.
@@ -38,7 +38,7 @@ The runtime has no external network, no interactive standard input, no installed
 
 ## Stack
 
-React, Vite, Radix Dialog, Lucide, self-hosted fonts; FastAPI, Uvicorn, SQLite; Docker-isolated code execution.
+React, Vite, Radix Dialog, Lucide, self-hosted fonts; FastAPI, Uvicorn, IndexedDB in the browser; optional legacy SQLite account mode; Docker-isolated code execution when configured.
 
 ## Local setup
 
@@ -54,9 +54,9 @@ uv pip install --python .venv/bin/python -r requirements.txt
 .venv/bin/python -m uvicorn server:app --host 127.0.0.1 --port 8000
 ```
 
-Open http://localhost:8000. Default `AUTH_MODE=supabase` and `RUNNER_MODE=disabled` allow browsing without credentials. Configure `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` to use sign-in; update the provider's local redirect allowlist. Variables are loaded from the process environment, not automatically from `.env`. See `.env.example` and the deployment guide.
+Open http://localhost:8000. Defaults are `STORAGE_MODE=browser` and `RUNNER_MODE=disabled`: no database or sign-in setup is needed for local learning records. Environment variables are read from the process, not automatically from `.env`.
 
-For local execution, build `xverse-javascript:1` using the isolated `runner-build` context in the deployment guide, pull `eclipse-temurin:21-jdk`, and start the API with `RUNNER_MODE=docker`. Standalone programming runs require a signed-in user.
+A separate protected runner is optional; see [RUNNER.md](RUNNER.md). Java/JavaScript reading, editing, and source download work without it; executable checks and completion require execution. This is not a full offline app: curriculum loading and exercise checks still use the API.
 
 The runtime curriculum is already included. To regenerate after authoring changes:
 
@@ -69,7 +69,7 @@ Run both scripts: the first builds HTML/CSS; the second adds JavaScript, Java, c
 
 ## Identity and deployment security
 
-Standalone deployments verify bearer tokens through Supabase Auth. No authentication cookies are used; exact CORS origins control cross-origin browser access. `AUTH_MODE=promptql` is an explicit compatibility option ONLY for PromptQL's trusted app proxy. Do not enable it on public standalone hosting.
+Optional server/account deployments verify bearer tokens through Supabase Auth. Browser-storage mode stores learning records locally and needs no account. No authentication cookies are used; exact CORS origins control cross-origin browser access. `AUTH_MODE=promptql` is an explicit compatibility option ONLY for PromptQL's trusted app proxy. Do not enable it on public standalone hosting.
 
 The web image has no Docker access. A separate runner receives only language/source from the API with its own server-side credential; learner tokens are never sent into execution containers.
 
@@ -90,28 +90,26 @@ The HTML/CSS preview is an iframe with no script permissions and a restrictive C
 
 ## Persistence
 
-SQLite uses `SQLITE_PATH` when set, otherwise `data/academy.sqlite`. Render stores it at `/var/data/academy.sqlite` on the mounted disk. Existing HTML/CSS lesson IDs and drafts are preserved across the rebrand. Programming source uses the existing draft `html` field with an empty `css` field for backward compatibility.
+IndexedDB (`xverse-learning-v1`) stores one shared local learning profile per browser and origin. Nothing is sent to the server during draft autosave. Exercise checks/runs intentionally send the current exercise source for validation/execution. Previous account data is not automatically copied or deleted.
 
-Preferences are browser-local. X Verse migrates prior color/tag preferences when available; it no longer exposes a companion preference. Project checklist checkmarks are temporary, but project code drafts persist per user.
+Browser storage can be cleared or evicted and does not sync across devices. Use Preferences & backups to export before changing devices/domains. Import validates a versioned JSON backup (or older account export) and merges atomically, keeping existing completions and the newer draft for each document. Backups include progress/code, not appearance preferences or temporary checklist marks.
 
-Back up SQLite through its backup API. The source archive excludes the database, tokens, dependencies, screenshots, and test identities.
+In optional `STORAGE_MODE=server`, SQLite uses `SQLITE_PATH` and needs a persistent disk. Switching to browser mode leaves that database intact. The source archive excludes databases, tokens, and test identities.
 
 ## Tests
 
 ```sh
-# With the web service running:
-.venv/bin/python test_api.py
-.venv/bin/python test_courses.py
+.venv/bin/python test_browser_backend.py
 .venv/bin/python test_hosting.py
-.venv/bin/python test_remote_runner.py
 cd frontend
 node test-tags.mjs
-node test-ui.mjs
-node test-xverse.mjs
-node test-hosting.mjs
+node test-browser-storage.mjs
+node test-browser-failures.mjs
 ```
 
-Legacy `test_api.py` and `test-xverse.mjs` target the trusted PromptQL-hosted test mode; do not enable that mode on public hosting just to run them. `test_hosting.py` and `test-hosting.mjs` mock Supabase rather than using real accounts. `test_remote_runner.py` needs Docker.\n\nBrowser tests require Chrome or an adjusted Playwright browser configuration. `test-xverse.mjs` writes a synthetic test identity to `qa-user.txt`; remove only that identity's records from `drafts` and `progress` after testing. API tests clean their own records. `test_courses.py` validates all 60 programming solutions independently of the HTTP rate limiter.
+Run a built web service on localhost:8000 before browser tests. `test_hosting.py` tests optional server mode with mocked provider identity. `test_browser_backend.py` checks the no-database default. Browser tests require Chrome (or adjust the Playwright channel), use isolated temporary browser contexts, and create no real accounts.
+
+Legacy UI/API tests target account mode; do not enable PromptQL-header trust on public hosting to run them. `test_courses.py` checks all 60 Java/JavaScript solutions with Docker. `test_remote_runner.py` exercises a protected local runner.
 
 ## Files
 
@@ -129,9 +127,13 @@ Legacy `test_api.py` and `test-xverse.mjs` target the trusted PromptQL-hosted te
 ## Hosting files
 
 - `DEPLOYMENT.md`: step-by-step Render, Vercel, auth, and runner setup.
-- `render.yaml`, `Dockerfile`, `deploy/start-web.py`: disk-backed web/API service.
+- `render.yaml`, `Dockerfile`, `deploy/start-web.py`: browser-mode web/API service (no disk required).
 - `vercel.json`: static frontend deployment.
 - `hosting.py`: explicit auth modes and validated deployment settings.
 - `runner_gateway.py`, `runner_server.py`: authenticated remote execution boundary.
 - `frontend/src/api-client.js`, `account.jsx`: standalone API client and sign-in UI.
 - `.env.example`, `frontend/.env.example`: safe configuration templates.
+
+- `frontend/src/browser-store.js`: IndexedDB records, validated backups, atomic imports.
+- `frontend/src/storage-panel.jsx`: backup and storage controls.
+- `RUNNER.md`: optional protected execution setup.

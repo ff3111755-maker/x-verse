@@ -3,7 +3,7 @@ import os,tempfile,json,base64
 from unittest.mock import patch
 from pathlib import Path
 testdir=tempfile.TemporaryDirectory()
-os.environ.update(AUTH_MODE='supabase',RUNNER_MODE='disabled',SQLITE_PATH=testdir.name+'/academy.sqlite',
+os.environ.update(STORAGE_MODE='server',AUTH_MODE='supabase',RUNNER_MODE='disabled',SQLITE_PATH=testdir.name+'/academy.sqlite',
                   SUPABASE_URL='https://test-project.supabase.co',SUPABASE_PUBLISHABLE_KEY='sb_publishable_test_only',
                   ALLOWED_ORIGINS='https://xverse-test.vercel.app')
 from fastapi.testclient import TestClient
