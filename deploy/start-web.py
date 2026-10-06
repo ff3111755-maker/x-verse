@@ -3,14 +3,14 @@ import os,pwd
 from pathlib import Path
 path=Path(os.getenv('SQLITE_PATH','/var/data/academy.sqlite'))
 if not path.is_absolute():raise SystemExit('SQLITE_PATH must be an absolute path')
-path.parent.mkdir(parents=True,exist_ok=True)
 if os.getuid()==0:
     user=pwd.getpwnam('app')
-    os.chown(path.parent,user.pw_uid,user.pw_gid)
-    # Only the known SQLite files, not an arbitrary recursive ownership change.
-    for suffix in ('','-wal','-shm'):
-        file=Path(str(path)+suffix)
-        if file.exists() and not file.is_symlink():os.chown(file,user.pw_uid,user.pw_gid)
+    if os.getenv('STORAGE_MODE','browser')=='server':
+        path.parent.mkdir(parents=True,exist_ok=True)
+        os.chown(path.parent,user.pw_uid,user.pw_gid)
+        for suffix in ('','-wal','-shm'):
+            file=Path(str(path)+suffix)
+            if file.exists() and not file.is_symlink():os.chown(file,user.pw_uid,user.pw_gid)
     os.setgroups([])
     os.setgid(user.pw_gid)
     os.setuid(user.pw_uid)
