@@ -1,0 +1,8 @@
+# Run Caddy on the dedicated runner host, not Render.
+# Replace this domain and point its DNS at the host before starting Caddy.
+runner.example.com {
+    request_body {
+        max_size 1MB
+    }
+    reverse_proxy 127.0.0.1:9000
+}

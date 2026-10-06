@@ -1,0 +1,21 @@
+[Unit]
+Description=X Verse isolated code runner (dedicated host only)
+After=network.target docker.service
+Requires=docker.service
+
+[Service]
+User=xverse-runner
+Group=xverse-runner
+SupplementaryGroups=docker
+WorkingDirectory=/opt/xverse
+EnvironmentFile=/etc/xverse-runner.env
+ExecStart=/opt/xverse/.venv/bin/uvicorn runner_server:app --host 127.0.0.1 --port 9000 --workers 1 --no-access-log
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
