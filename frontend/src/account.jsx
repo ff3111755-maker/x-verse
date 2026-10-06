@@ -1,6 +1,6 @@
 import React,{useState} from 'react';
 import {LogIn,LogOut,Mail,Loader2} from 'lucide-react';
-import {getConfig,getAuthClient} from './api-client.js';
+import {getConfig,getAuthClient,isBrowserStorage} from './api-client.js';
 export function AccountPanel({user}){
  const config=getConfig(),client=getAuthClient();
  const [email,setEmail]=useState(''),[password,setPassword]=useState(''),[mode,setMode]=useState('signin'),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[error,setError]=useState('');
@@ -33,6 +33,6 @@ export function AccountPanel({user}){
  </section>
 }
 export function HostingNotice({onSignIn,user}){
- const c=getConfig();if(c?.auth_mode!=='supabase')return null;
+ const c=getConfig();if(isBrowserStorage())return <div className="hosting-notice"><p>Auto-saved on this device. <button className="text-btn" onClick={onSignIn}>Backups & storage</button></p>{!c.browser_runner_available&&<p>Java and JavaScript execution needs a configured, protected runner. You can still read lessons, save code, and download programs.</p>}</div>;if(c?.auth_mode!=='supabase')return null;
  return <div className="hosting-notice">{!user&&<p><button className="text-btn" onClick={onSignIn}>Sign in</button> to save progress, drafts, and run programs.</p>}{!c.runner_enabled&&<p>{c.runner_message}</p>}</div>
 }

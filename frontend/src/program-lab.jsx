@@ -1,4 +1,4 @@
-import {apiFetch} from './api-client.js';
+import {apiFetch,isBrowserStorage} from './api-client.js';
 import React,{useState,useEffect,useRef} from 'react';
 import {Play,Download,Copy,Save,RotateCcw,Loader2,Terminal} from 'lucide-react';
 export const languageName=t=>t==='javascript'?'JavaScript':t==='java'?'Java':t==='html'?'HTML':'CSS';
@@ -14,20 +14,22 @@ export function ProgramLab({docId,language,initialHtml,user,onDraft,toast,onCode
   try{
    const r=await apiFetch('/api/drafts/'+docId,{expectedUserId:user?.id,method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({html:snapshot,css:''})});
    const d=await r.json();if(!r.ok)throw new Error(d.detail||'Save failed');
-   if(latest.current===snapshot){dirty.current=false;setSaved('Saved');}
-  }catch(e){setSaved('Not saved');toast(e.message);}
+   if(latest.current===snapshot){dirty.current=false;setSaved(isBrowserStorage()?'Saved in this browser':'Saved');}
+  }catch(e){setSaved('Not saved · '+e.message);toast(e.message);throw e;}
  }
  useEffect(()=>{
   latest.current=source;onCode?.({html:source,css:''});setResult(null);
   if(initial.current){initial.current=false;return;}
   dirty.current=true;onDraft(docId,{html:source,css:''});setSaved('Unsaved changes');
-  const t=setTimeout(persist,1400);return()=>clearTimeout(t);
+  if(isBrowserStorage()){persist().catch(()=>{});return;}
+  const t=setTimeout(()=>persist().catch(()=>{}),1400);return()=>clearTimeout(t);
  },[source]);
  useEffect(()=>{if(execution)setResult(execution)},[execution]);
  useEffect(()=>{
   const flush=()=>{if(dirty.current&&user)apiFetch('/api/drafts/'+docId,{expectedUserId:user?.id,method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({html:latest.current,css:''}),keepalive:true}).catch(()=>{})};
   window.addEventListener('pagehide',flush);return()=>{window.removeEventListener('pagehide',flush);flush()};
  },[]);
+ useEffect(()=>{const flush=e=>{if(dirty.current&&user)e.detail.tasks.push(persist());};window.addEventListener('xverse-flush-editors',flush);return()=>window.removeEventListener('xverse-flush-editors',flush)},[]);
  async function run(){
   setRunning(true);setResult(null);const snapshot=latest.current;
   try{
@@ -41,7 +43,7 @@ export function ProgramLab({docId,language,initialHtml,user,onDraft,toast,onCode
   if(e.key==='Escape'){release.current=true;return;}
   if(e.key==='Tab'&&release.current){release.current=false;return;}
   if(e.key==='Tab'&&!e.shiftKey){e.preventDefault();const a=e.target.selectionStart,b=e.target.selectionEnd;setSource(source.slice(0,a)+'  '+source.slice(b));requestAnimationFrame(()=>editor.current?.setSelectionRange(a+2,a+2))}
-  if((e.ctrlKey||e.metaKey)&&e.key==='s'){e.preventDefault();persist();}
+  if((e.ctrlKey||e.metaKey)&&e.key==='s'){e.preventDefault();persist().catch(()=>{});}
  };
  return <div className="program-lab code-lab">
   <div className="lab-toolbar"><span className="program-filename"><Terminal size={16}/>{filename}</span><div className="lab-actions">
@@ -57,6 +59,6 @@ export function ProgramLab({docId,language,initialHtml,user,onDraft,toast,onCode
   {result&&<>{result.stale&&<p>Output is from the previous version of your code.</p>}<pre>{result.stdout||(!result.stderr?'Finished with no output.':'')}</pre>{result.stderr&&<pre className="error-output">{result.stderr}</pre>}<small>Exit {result.exit_code}{result.duration_ms!=null?' · '+(result.duration_ms/1000).toFixed(2)+'s':''}</small></>}
   </div></div></div>
   <div className="program-notice" id={'help-'+docId}>{language==='java'?'Use public class Main. Standard library only; no interactive input.':'ES modules supported. document and window use a DOM fixture, not a full browser.'} No network. Temporary files reset after each run. 15-second limit. Esc, then Tab leaves the editor.</div>
-  <div className="editor-footer"><span>{saved||(user?'Autosave ready':'Session only · download to keep your code')}</span><button className="text-btn" onClick={persist}><Save size={13}/> Save draft</button></div>
+  <div className="editor-footer"><span>{saved||(user?'Autosave ready':'Session only · download to keep your code')}</span><button className="text-btn" onClick={()=>persist().catch(()=>{})}><Save size={13}/> Save draft</button></div>
  </div>
 }
