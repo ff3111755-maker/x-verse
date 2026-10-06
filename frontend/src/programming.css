@@ -1,0 +1,51 @@
+/* Four-course layout and executable language workspaces. */
+.program-filename{display:flex;align-items:center;gap:9px;font:12px "IBM Plex Mono",monospace;padding:10px 14px;color:inherit}
+.program-columns{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);min-height:365px}
+.program-columns .editor-body{height:365px}
+.program-output{min-width:0;border-left:1px solid var(--line);background:#0a1015}
+.console-scroll{padding:20px;max-height:365px;overflow:auto;overflow-wrap:anywhere;color:#dae3eb}
+.console-scroll pre{font:12px/1.8 "IBM Plex Mono",monospace;white-space:pre-wrap;word-break:break-word;margin:0 0 14px}
+.console-scroll p,.console-scroll small{font-size:12px;color:#a5b3c2;line-height:1.7}
+.console-scroll .error-output{color:#ffb0a6}
+.program-notice{padding:12px 16px;border-top:1px solid var(--line);font-size:11px;color:#a6b1be;line-height:1.7}
+.run-program{font-size:11px;padding:8px 13px;margin:5px;white-space:nowrap}
+.program-reset{display:flex;gap:12px;align-items:center;padding:14px;flex-wrap:wrap;background:var(--panel)}
+.program-reset p{flex:1;font-size:12px;min-width:150px}
+.track-card.javascript{background:linear-gradient(120deg,color-mix(in srgb,#e8cd79 9%,var(--panel)),var(--panel))}
+.track-card.java{background:linear-gradient(120deg,color-mix(in srgb,#84adfa 10%,var(--panel)),var(--panel))}
+.track-card.javascript .track-icon{color:#e8cd79}.track-card.java .track-icon{color:#9dc1fa}
+.track-card h3 span{display:block;margin:9px 0 0;font-size:11px;line-height:1.6}
+.track-card .track-desc{min-height:44px}
+.mini-tracks .track-desc{min-height:0}
+.badge-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+.filter-bar{flex-wrap:wrap;gap:16px}.segmented{flex-wrap:wrap}
+.sidebar-path .future-nav{padding-block:9px}
+.sidebar-path .future-nav small{font-size:9px}
+.hero-copy h2{font-size:clamp(36px,4.4vw,64px)}
+.program-lab .lab-toolbar{flex-wrap:wrap}
+@media(max-width:780px){
+ .program-columns{grid-template-columns:1fr}.program-output{border-left:0;border-top:1px solid var(--line)}
+ .program-columns .editor-body{height:320px}.console-scroll{min-height:150px;max-height:300px}
+ .badge-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.track-card h3 span{font-size:11px}
+ .hero-copy h2{font-size:42px}
+}
+@media(max-width:400px){
+ .program-filename{font-size:10px;padding:9px}
+ .run-program{font-size:10px;padding:7px 10px}
+ .program-lab .lab-actions{gap:0}
+ .program-lab .icon-button{width:27px;height:28px}
+ .segmented button{font-size:10px;padding:9px 10px}
+ .hero-copy h2{font-size:36px}
+ .badge-grid{grid-template-columns:1fr}
+ .stats-strip strong small{font-size:11px!important}
+ .stats-strip>div>div>span{white-space:normal!important;line-height:1.6}
+}
+.account-panel{padding:0 0 24px;margin-bottom:24px;border-bottom:1px solid var(--line)}
+.account-panel h3{font-size:18px;margin:0 0 15px}.account-panel p{line-height:1.7;font-size:12px}
+.account-panel form{display:grid;gap:13px;margin:18px 0}.account-panel label{display:grid;gap:7px;font-size:12px}
+.account-panel input{width:100%;border:1px solid var(--line);border-radius:6px;background:var(--app-bg);color:inherit;padding:12px;font:inherit}
+.account-panel input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.account-panel small{color:#a8b5c3}
+.account-panel .account-error{color:#ffb0a6}.account-panel .account-message{color:var(--accent)}
+.hosting-notice:empty{display:none}.hosting-notice{margin:18px 38px 0;padding:12px 18px;border:1px solid var(--line);border-radius:8px;background:var(--app-panel)}
+.hosting-notice p{font-size:12px;line-height:1.7;margin:4px 0;color:#c3cbd6}.hosting-notice button{display:inline-flex}
+@media(max-width:560px){.hosting-notice{margin:14px 16px 0;padding:10px}.account-panel .text-btn{white-space:normal;text-align:left;line-height:1.7}}
